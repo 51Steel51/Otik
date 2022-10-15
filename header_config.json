@@ -1,0 +1,56 @@
+{
+  "DefaultHeader": {
+    "signature": {
+      "value": "pivl",
+      "byte": 4
+    },
+    "version": {
+      "value": "1.0",
+      "byte": 2
+    },
+    "type": {
+      "value": 0,
+      "byte": 2
+    },
+    "compressionMethod": {
+      "value": 0,
+      "byte": 2
+    },
+    "noiseProtection": {
+      "value": 0,
+      "byte": 2
+    },
+    "modificationTime": {
+      "value": "h:m:s",
+      "byte": 2
+    },
+    "modificationDate": {
+      "value": "m:d:y",
+      "byte": 2
+    },
+    "compressedSize": {
+      "value": 0,
+      "byte": 8
+    },
+    "uncompressedSize": {
+      "value": 0,
+      "byte": 8
+    },
+    "fileLength": {
+      "value": 0,
+      "byte": 2
+    },
+    "fileName": {
+      "value": "",
+      "byte": "variable"
+    },
+    "extra":{
+      "value": 0,
+      "byte": 16
+    },
+    "flag": {
+      "value": "F1A6",
+      "byte": 2
+    }
+  }
+}
