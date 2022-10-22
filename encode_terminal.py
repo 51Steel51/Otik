@@ -19,11 +19,6 @@ def cli():
 def encode(file_paths: str, name):
     """Encodes files from file path."""
 
-    #if not file_paths:
-    #    file_paths = click.prompt('Enter at least one file path')
-
-    print(file_paths)
-
     fHandler = FileHandler()
     fHandler.loadConfig('header_config.json', 'DefaultHeader')
     fHandler.encodeFile(file_paths, outputName=name)
