@@ -1,5 +1,8 @@
 import sys
 
+# tuples - (val, byte) - value and count of bytes for this value
+from typing import Dict
+
 
 class FileHeader:
     signature: (str, int)
@@ -20,6 +23,11 @@ class DefaultHeader(FileHeader):
     modificationDate: (int, int, int, int)
     compressedSize: (int, int)
     uncompressedSize: (int, int)
+    compressionCharacter: (int, int)
+    compressionCode: (int, int)
+    codesCount: (int, int)
+    zeroAdd: (int, int)
+    codes: (Dict[str, bytes], int)
 
     def __init__(self, sign=None, ver=None, comp=None, n_p=None, extr=None):
         self.signature = sign

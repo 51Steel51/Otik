@@ -8,7 +8,7 @@ from typing import Tuple, List, BinaryIO
 import click
 from math import log2, floor
 from datetime import datetime, tzinfo, timedelta
-from Modules.compressionAlg import Algorithm, NoCompressionAlg
+from Modules.compressionAlg import Algorithm, NoCompressionAlg, HuffmanAlg
 from Modules.Decoder import Decoder
 from Modules.Encoder import Encoder
 from Modules.FileHeader import FileHeader, DefaultHeader
@@ -139,12 +139,12 @@ class FileHandler:
         with open(file_path, 'rb') as file_to_encode:
             while True:
                 # define header and read data
-                header, source_data = self.headerHandler.headerRead(file_to_encode, encoding)
+                header, source_data, codes = self.headerHandler.headerRead(file_to_encode, encoding)
 
-                # decode data and write it ti file / create folder
+                # decode data and write it to file / create folder
                 if not header.fileType:
                     # decode data
-                    decoded_file = self.decoder.decompress(source_data)
+                    decoded_file = self.decoder.decompress(source_data, codes)
 
                     path = os.path.join(folderName, header.fileName[0])
                     create_supply_folders(path, False)
@@ -184,15 +184,16 @@ class FileHandler:
 
                     is_dir = os.path.isdir(orig_path)
                     encoded_data = None
+                    codes = None
                     if not is_dir:
                         self.encoder = Encoder(self.alg)
                         data = None
                         with open(orig_path, 'rb') as f:
                             data = f.read()
-                        encoded_data = self.encoder.compress(data)
+                        codes, encoded_data = self.encoder.compress(data)
 
                     # set up header
-                    header = self.headerHandler.headerSetUp(is_dir, self.sourceFile, encoded_data)
+                    header = self.headerHandler.headerSetUp(is_dir, self.sourceFile, encoded_data, codes)
 
                     # write info about file or directory to archive
                     if not is_dir:
@@ -205,7 +206,7 @@ class FileHandler:
         with open(file_path) as f:
             config = json.load(f)
             self.config = config[header_name]
-        self.alg = NoCompressionAlg()
+        self.alg = HuffmanAlg()
         self.sourceFile = FileInfo()
         self.processedFile = FileInfo()
         self.headerHandler = DefaultHeaderHandler(self.config)

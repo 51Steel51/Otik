@@ -1,9 +1,10 @@
-from typing import Tuple, BinaryIO
+from typing import Tuple, BinaryIO, AnyStr, Dict
 from typing.io import IO
 from math import floor, log2
 from datetime import datetime, tzinfo, timedelta
 import sys
 
+from Modules.Encoder import Encoder
 from Modules.FileHeader import FileHeader, DefaultHeader
 
 
@@ -23,6 +24,14 @@ def find_near_2_bytes(bytes_count: int):
     if size % 1 > 0:
         size = floor(size + 1)
     return int(pow(2, size))
+
+def find_zeros_at_start(message: str) -> int:
+    count = 0
+    for ch in message:
+        if ch != '0':
+            return count
+        count += 1
+    return count
 
 
 class MSK(tzinfo):
@@ -46,16 +55,16 @@ class MSK(tzinfo):
 class HeaderHandler:
     config: dict
 
-    def __init__(self, conf):
+    def __init__(self, conf: dict):
         self.config = conf
 
-    def headerRead(self, f: BinaryIO, encoding: str) -> Tuple[DefaultHeader, bytearray]:
+    def headerRead(self, f: BinaryIO, encoding: str) -> Tuple[DefaultHeader, bytearray, Dict[str, AnyStr]]:
         pass
 
     def headerWrite(self, output_file: BinaryIO, header: FileHeader, encoding: str, ) -> None:
         pass
 
-    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes, ) -> FileHeader:
+    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes, codes: Dict[str, AnyStr] = None) -> FileHeader:
         pass
 
 
@@ -63,7 +72,7 @@ class DefaultHeaderHandler(HeaderHandler):
     def __init__(self, conf):
         super().__init__(conf)
 
-    def headerRead(self, f: BinaryIO, encoding: str) -> Tuple[DefaultHeader, bytearray]:
+    def headerRead(self, f: BinaryIO, encoding: str) -> Tuple[DefaultHeader, bytearray, Dict[str, AnyStr]]:
         header = DefaultHeader()
 
         # signature
@@ -94,7 +103,7 @@ class DefaultHeaderHandler(HeaderHandler):
         bits = format(int.from_bytes(f.read(self.config['modificationTime']['byte']), 'big'), 'b')
         hours = int(bits[0:5], 2)
         minutes = int(bits[5:11], 2)
-        seconds = int(bits[11:16], 2)
+        seconds = 0 # int(bits[11:16], 2)
 
         header.modificationTime = (hours, minutes, seconds, self.config['modificationTime']['byte'])
 
@@ -121,6 +130,36 @@ class DefaultHeaderHandler(HeaderHandler):
         bytes_count = find_near_2_bytes(header.fileLength[0])
         header.fileName = f.read(bytes_count)[0:header.fileLength[0]].decode(encoding=encoding), bytes_count
 
+        # compression character
+        header.compressionCharacter = int.from_bytes(f.read(self.config['compressionCharacter']['byte']), 'big'), \
+                                      self.config['compressionCharacter']['byte']
+
+        # compression code
+        header.compressionCode = int.from_bytes(f.read(self.config['compressionCode']['byte']), 'big'), \
+                                 self.config['compressionCode']['byte']
+
+        # code count - count of all characters codes
+        header.codesCount = int.from_bytes(f.read(self.config['codesCount']['byte']), 'big'), \
+                            self.config['codesCount']['byte']
+
+        # zero added to every code to byte
+        header.zeroAdd = (0, self.config['zeroAdd']['byte'])
+
+        # all characters with codes
+        # header.codes - (dict[character, code], byte)
+        codes = {}
+        characterSize = header.compressionCharacter[0]
+        codeSize = header.compressionCode[0]
+        allCodesSize = int((characterSize + codeSize) * header.codesCount[0])
+        for _ in range(header.codesCount[0]):
+            character = f.read(characterSize).decode(encoding=encoding).rstrip('\x00')
+            zero_added = int.from_bytes(f.read(header.zeroAdd[1]), 'big')
+            code = int.from_bytes(f.read(codeSize), 'big')
+            code = "{0:b}".format(code)
+            code = '0' * zero_added + code
+            codes[character] = code
+        header.codes = codes, allCodesSize
+
         # extra space
         header.extra = f.read(self.config['extra']['byte'])
 
@@ -130,13 +169,13 @@ class DefaultHeaderHandler(HeaderHandler):
             flag = bytearray.fromhex(self.config['flag']['value'])
             while not is_flag(f, flag):
                 source_data.extend(f.read(1))
-
         else:
             flag = f.read(self.config['flag']['byte'])
 
-        return header, source_data
+        return header, source_data, codes
 
-    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes, ) -> DefaultHeader:
+    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes,
+                    codes: Dict[str, AnyStr] = None) -> DefaultHeader:
 
         # signature, version, compressionMethod
         header = DefaultHeader((self.config['signature']['value'], self.config['signature']['byte']),
@@ -173,6 +212,24 @@ class DefaultHeaderHandler(HeaderHandler):
         header.compressedSize = (
             int(header.countHeaderSize() + sys.getsizeof(encoded_data) + compSize), compSize)
 
+        # compression character - size of an symbol
+        charSize = find_near_2_bytes(Encoder.find_near_byte(codes, True))
+        header.compressionCharacter = (charSize, self.config['compressionCharacter']['byte'])
+
+        # compression code - size of one code of a character
+        codeSize = find_near_2_bytes(Encoder.find_near_byte(codes, False))
+        header.compressionCode = (codeSize, self.config['compressionCode']['byte'])
+
+        # code count - count of all characters codes
+        codesCount = len(codes)
+        header.codesCount = (codesCount, self.config['codesCount']['byte'])
+
+        # zero add - zeros to be subtracted from every code
+        header.zeroAdd = (0, self.config['zeroAdd']['byte'])
+
+        # all characters with codes
+        header.codes = (codes, self.config['codes']['byte'])
+
         return header
 
     def headerWrite(self, output_file: BinaryIO, header: DefaultHeader, encoding: str, ) -> None:
@@ -205,6 +262,7 @@ class DefaultHeaderHandler(HeaderHandler):
                             (header.modificationTime[1], 6),
                             (header.modificationTime[2] // 2, 5)))
         modTime = int(modTime, 2).to_bytes(header.modificationTime[3], byteorder='big')
+        print(modTime)
         output_file.write(modTime)
 
         # modification date
@@ -230,6 +288,34 @@ class DefaultHeaderHandler(HeaderHandler):
         ba = bytearray(header.fileName[0], encoding)
         ba.extend(bytearray(int(header.fileName[1]) - len(ba)))
         output_file.write(ba)
+
+        # compression character
+        output_file.write(header.compressionCharacter[0].to_bytes(header.compressionCharacter[1]
+                                                                  , byteorder='big'))
+
+        # compression code
+        output_file.write(header.compressionCode[0].to_bytes(header.compressionCode[1]
+                                                             , byteorder='big'))
+
+        # code count - count of all characters codes
+        output_file.write(header.codesCount[0].to_bytes(header.codesCount[1]
+                                                        , byteorder='big'))
+
+        # all characters with codes
+        # header.codes - (dict[character, code], byte)
+        for character, code in header.codes[0].items():
+            ch = bytearray(character, encoding)
+            ch.extend(bytearray(header.compressionCharacter[0] - len(ch)))
+            output_file.write(ch)
+
+            count_of_zeros = find_zeros_at_start(code)
+            code = code[count_of_zeros::] if count_of_zeros < len(code) else '0'
+            if code == '0':
+                count_of_zeros -= 1
+            output_file.write(count_of_zeros.to_bytes(header.zeroAdd[1], byteorder='big'))
+
+            code = int(code, 2)
+            output_file.write(code.to_bytes(header.compressionCode[0], byteorder='big'))
 
         # extra space
         output_file.write(bytearray(header.extra[1]))

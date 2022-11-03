@@ -44,6 +44,26 @@
       "value": "",
       "byte": "variable"
     },
+    "compressionCharacter": {
+      "value": "",
+      "byte": 2
+    },
+    "compressionCode": {
+      "value": "",
+      "byte": 2
+    },
+    "codesCount": {
+      "value": "",
+      "byte": 4
+    },
+    "zeroAdd": {
+      "value": "",
+      "byte": 4
+    },
+    "codes": {
+      "value": "",
+      "byte": "variable"
+    },
     "extra":{
       "value": 0,
       "byte": 16
