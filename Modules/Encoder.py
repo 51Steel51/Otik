@@ -15,6 +15,8 @@ class Encoder:
 
     @staticmethod
     def find_near_byte(codes: dict, keys_or_values: bool, encoding: str = 'utf-8'):
+        if not codes:
+            return 0
         if keys_or_values:
             # max_len - bytes
             max_len = max([len(bytearray(i, encoding)) for i in codes.keys()])

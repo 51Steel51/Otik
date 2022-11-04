@@ -1,5 +1,6 @@
 from filecmp import cmp
 from typing import AnyStr, Dict, Tuple, Any
+from bitarray import bitarray
 
 
 class Algorithm:
@@ -16,14 +17,13 @@ class Algorithm:
 class NoCompressionAlg(Algorithm):
 
     def encode(self, src: bytes) -> Tuple[Dict[str, AnyStr], bytes]:
-        return None, src
+        return {}, src
 
     def decode(self, src: bytes, codes: Dict[str, AnyStr]) -> bytes:
-        return None, src
+        return src
 
 
 class HuffmanAlg(Algorithm):
-
     class Root:
 
         def __init__(self):
@@ -95,7 +95,6 @@ class HuffmanAlg(Algorithm):
 
     def create_root_sort(self, d: dict, root: Root, num: int):
 
-
         root.add_child(d.popitem())
         root.add_child(d.popitem())
 
@@ -126,12 +125,19 @@ class HuffmanAlg(Algorithm):
         for element in src:
             result += codes[element]
 
-        result = result.encode()
+        bt = bitarray()
+        bt.extend([int(i) for i in result])
+        result = bitarray.tobytes(bt)
 
         return codes, result
 
     def decode(self, src: bytes, codes: Dict[str, AnyStr]) -> bytes:
-        src = src.decode('ascii')
+        bt = bitarray()
+        src = bytes(src)
+        bt.frombytes(src)
+        src = bt.tolist()
+        src = [str(i) for i in src]
+        src = ''.join(src)
         new_codes = {v: k for k, v in codes.items()}
         result = ''
         i = 1
@@ -141,6 +147,8 @@ class HuffmanAlg(Algorithm):
                 result += new_codes[src[0:i]]
                 src = src[i::]
                 i = 1
+            elif i > len(src):
+                break
             else:
                 i += 1
 

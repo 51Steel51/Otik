@@ -132,7 +132,6 @@ class FileHandler:
         self.sourceFile.Path = file_path
         self.sourceFile.Name = file_path.split('/')[-1]
         self.sourceFile.Extension = self.sourceFile.Name.split('.')[-1]
-        self.decoder = Decoder(self.alg)
 
         folderName = self.sourceFile.Name.split('.')[0]
 
@@ -143,7 +142,17 @@ class FileHandler:
 
                 # decode data and write it to file / create folder
                 if not header.fileType:
+
+                    # select compression algorithm
+                    if header.compressionMethod[0] == 0:
+                        self.alg = NoCompressionAlg()
+                    elif header.compressionMethod[0] == 1:
+                        self.alg = HuffmanAlg()
+                    else:
+                        raise ValueError(f"Unknown compression algorithm: {header.compressionMethod[0]}")
+
                     # decode data
+                    self.decoder = Decoder(self.alg)
                     decoded_file = self.decoder.decompress(source_data, codes)
 
                     path = os.path.join(folderName, header.fileName[0])
@@ -154,6 +163,7 @@ class FileHandler:
                     # write decoded data
                     decoded_file_path = self.sourceFile.Path
                     with open(decoded_file_path, 'wb') as file_to_write:
+                        print(f"File {header.fileName[0]} was encoded with {header.compressionMethod[0]} algorithm")
                         self.writeFile(file_content=decoded_file, output_file=file_to_write)
 
                 else:
@@ -166,16 +176,28 @@ class FileHandler:
                 else:
                     file_to_encode.seek(-1, 1)
 
-    def encodeFile(self, file_paths: str | list, alg: int = None, noise_prot: int = None, outputName: str = None):
+    def encodeFile(self, file_paths: list, compression_alg: tuple | int = None, noise_prot: int = None, outputName: str = None):
         if not outputName:
             outputName = DEFAULT_OUTPUT_NAME
         self.processedFile.Path = outputName + CUSTOM_EXTENSION
         if not os.path.exists(self.processedFile.Path):
             open(self.processedFile.Path, 'w').close()
         with open(self.processedFile.Path, 'ab') as compressed_file:
+            if isinstance(compression_alg, int):
+                compression_alg = tuple([compression_alg for _ in range(len(file_paths))])
+            alg_order = 0
             for path in file_paths:
                 inner_paths = list_all_files(path)
                 for (orig_path, file_path) in inner_paths:
+
+                    # select compression algorithm
+                    if compression_alg[alg_order] == 0:
+                        self.alg = NoCompressionAlg()
+                    elif compression_alg[alg_order] == 1:
+                        self.alg = HuffmanAlg()
+                    else:
+                        raise ValueError(f"Unknown compression algorithm: {compression_alg[alg_order]}")
+
                     self.sourceFile.Path = file_path
                     self.sourceFile.Name = file_path
                     self.sourceFile.Len = len(self.sourceFile.Name)
@@ -185,6 +207,7 @@ class FileHandler:
                     is_dir = os.path.isdir(orig_path)
                     encoded_data = None
                     codes = None
+                    compression_method = compression_alg[alg_order]
                     if not is_dir:
                         self.encoder = Encoder(self.alg)
                         data = None
@@ -192,8 +215,19 @@ class FileHandler:
                             data = f.read()
                         codes, encoded_data = self.encoder.compress(data)
 
+
+                        encoded_data_len = sys.getsizeof(encoded_data)
+                        data_len = sys.getsizeof(data)
+
+                        print(encoded_data_len, data_len, self.sourceFile.Name)
+                        # if encoded_data_len > data_len:
+                        #     encoded_data = data
+                        #     print(f"Uncompressed data ({data_len}) is smaller in size then compressed data ({encoded_data_len}) for file {self.sourceFile.Name}")
+
                     # set up header
-                    header = self.headerHandler.headerSetUp(is_dir, self.sourceFile, encoded_data, codes)
+                    header = self.headerHandler.headerSetUp(is_dir, self.sourceFile, encoded_data, codes, compression_method=compression_method)
+                    if not is_dir:
+                        print(self.sourceFile.Name, "compression algorithm", header.compressionMethod[0])
 
                     # write info about file or directory to archive
                     if not is_dir:
@@ -201,12 +235,12 @@ class FileHandler:
                                        encoding='utf-8')
                     else:
                         self.writeFile(header=header, output_file=compressed_file, encoding='utf-8')
+                alg_order += 1
 
     def loadConfig(self, file_path: str, header_name: str):
         with open(file_path) as f:
             config = json.load(f)
             self.config = config[header_name]
-        self.alg = HuffmanAlg()
         self.sourceFile = FileInfo()
         self.processedFile = FileInfo()
         self.headerHandler = DefaultHeaderHandler(self.config)

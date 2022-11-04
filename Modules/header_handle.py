@@ -20,6 +20,8 @@ def is_flag(file_position, flag: bytearray) -> bool:
 
 def find_near_2_bytes(bytes_count: int):
     # find power of 2
+    if not bytes_count:
+        return 0
     size = log2(bytes_count)
     if size % 1 > 0:
         size = floor(size + 1)
@@ -64,7 +66,7 @@ class HeaderHandler:
     def headerWrite(self, output_file: BinaryIO, header: FileHeader, encoding: str, ) -> None:
         pass
 
-    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes, codes: Dict[str, AnyStr] = None) -> FileHeader:
+    def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes, codes: Dict[str, AnyStr] = None, compression_method: int = 0) -> FileHeader:
         pass
 
 
@@ -175,13 +177,12 @@ class DefaultHeaderHandler(HeaderHandler):
         return header, source_data, codes
 
     def headerSetUp(self, is_dir: bool, sourceFile, encoded_data: bytes,
-                    codes: Dict[str, AnyStr] = None) -> DefaultHeader:
+                    codes: Dict[str, AnyStr] = None, compression_method: int = 0, ) -> DefaultHeader:
 
         # signature, version, compressionMethod
         header = DefaultHeader((self.config['signature']['value'], self.config['signature']['byte']),
                                (self.config['version']['value'], self.config['version']['byte']),
-                               (self.config['compressionMethod']['value'],
-                                self.config['compressionMethod']['byte']),
+                               (compression_method, self.config['compressionMethod']['byte']),
                                (
                                    self.config['noiseProtection']['value'],
                                    self.config['noiseProtection']['byte']),
@@ -262,7 +263,6 @@ class DefaultHeaderHandler(HeaderHandler):
                             (header.modificationTime[1], 6),
                             (header.modificationTime[2] // 2, 5)))
         modTime = int(modTime, 2).to_bytes(header.modificationTime[3], byteorder='big')
-        print(modTime)
         output_file.write(modTime)
 
         # modification date
