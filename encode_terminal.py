@@ -24,7 +24,7 @@ def encode(file_paths: str, compress: str, name):
         compress = compress.split(',')
         compress = tuple([int(i.strip()) for i in compress])
 
-        if len(file_paths) != len(compress):
+        if len(file_paths) != len(compress) and len(compress) > 1:
             raise ValueError("Count of files and compression methods must be equal")
 
 

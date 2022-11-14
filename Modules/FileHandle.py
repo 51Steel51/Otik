@@ -183,8 +183,10 @@ class FileHandler:
         if not os.path.exists(self.processedFile.Path):
             open(self.processedFile.Path, 'w').close()
         with open(self.processedFile.Path, 'ab') as compressed_file:
-            if isinstance(compression_alg, int):
-                compression_alg = tuple([compression_alg for _ in range(len(file_paths))])
+            if len(compression_alg) == 1:
+                compression_alg = tuple([compression_alg[0] for _ in range(len(file_paths))])
+            print(compression_alg)
+            print(file_paths)
             alg_order = 0
             for path in file_paths:
                 inner_paths = list_all_files(path)
@@ -215,14 +217,14 @@ class FileHandler:
                             data = f.read()
                         codes, encoded_data = self.encoder.compress(data)
 
-
                         encoded_data_len = sys.getsizeof(encoded_data)
                         data_len = sys.getsizeof(data)
 
-                        print(encoded_data_len, data_len, self.sourceFile.Name)
-                        # if encoded_data_len > data_len:
-                        #     encoded_data = data
-                        #     print(f"Uncompressed data ({data_len}) is smaller in size then compressed data ({encoded_data_len}) for file {self.sourceFile.Name}")
+                        print("Source size:", data_len, "compressed size:", encoded_data_len, "file:", self.sourceFile.Name)
+                        if encoded_data_len > data_len:
+                            compression_method = 0
+                            encoded_data = data
+                            print(f"Uncompressed data ({data_len}) is smaller in size then compressed data ({encoded_data_len}) for file {self.sourceFile.Name}")
 
                     # set up header
                     header = self.headerHandler.headerSetUp(is_dir, self.sourceFile, encoded_data, codes, compression_method=compression_method)
